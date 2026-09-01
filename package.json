@@ -1,0 +1,29 @@
+{
+  "name": "realtime-tts-mcp",
+  "version": "0.1.0",
+  "description": "MCP server wrapping a real-time, GPU-capable, streaming text-to-speech gateway (Kokoro-82M) as a single synthesize_speech tool. Returns playable WAV audio.",
+  "bin": {
+    "realtime-tts-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc && chmod +x dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/ws": "^8.5.10",
+    "tsx": "^4.15.7",
+    "typescript": "^5.5.2"
+  },
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tsushanth/realtime-tts-mcp.git"
+  },
+  "keywords": ["mcp", "model-context-protocol", "tts", "text-to-speech", "kokoro", "voice"]
+}
