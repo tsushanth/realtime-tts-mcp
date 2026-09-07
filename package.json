@@ -1,6 +1,7 @@
 {
   "name": "realtime-tts-mcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
+  "mcpName": "io.github.tsushanth/realtime-tts-mcp",
   "description": "MCP server for ReadAloud's realtime streaming text-to-speech API (Kokoro-82M) as a single synthesize_speech tool. Free API key, 10,000 free characters, sub-second warm latency. Returns playable WAV audio.",
   "engines": {
     "node": ">=18"
