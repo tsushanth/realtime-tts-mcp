@@ -7,9 +7,15 @@ import {
 } from '@modelcontextprotocol/sdk/types.js'
 import WebSocket from 'ws'
 
-const ENDPOINT = process.env.REALTIME_TTS_ENDPOINT ?? 'wss://realtime-tts-gateway.fly.dev/tts'
-const API_KEY = process.env.REALTIME_TTS_API_KEY // optional — the gateway currently runs open (no key required)
-const SYNTHESIS_TIMEOUT_MS = Number(process.env.REALTIME_TTS_TIMEOUT_MS) || 60_000
+// Two-step fast path: POST /tts/authorize (key + free-tier/billing check) gets
+// a short-lived signed token, then connect DIRECTLY to the returned worker
+// URL with it — no gateway relay hop for the actual audio. See
+// tsushanth/realtime-tts's DECISIONS.md: the old relay-everything-through-the-
+// gateway path measured ~350-400ms of pure added handshake overhead per
+// session versus connecting directly.
+const API_BASE = process.env.REALTIME_TTS_API_BASE ?? 'https://api.readaloudai.org'
+const API_KEY = process.env.REALTIME_TTS_API_KEY
+const SYNTHESIS_TIMEOUT_MS = Number(process.env.REALTIME_TTS_TIMEOUT_MS) || 30_000
 const SAMPLE_RATE = 24000
 const BITS_PER_SAMPLE = 16
 const CHANNELS = 1
@@ -42,10 +48,22 @@ interface SynthesisResult {
   audioS: number | null
 }
 
-function synthesize(text: string, voice: string, speed: number): Promise<SynthesisResult> {
+async function authorize(): Promise<{ token: string; url: string }> {
+  const res = await fetch(`${API_BASE}/tts/authorize`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: API_KEY }),
+  })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`Authorization failed (${res.status}): ${body || res.statusText}`)
+  }
+  return res.json() as Promise<{ token: string; url: string }>
+}
+
+function synthesizeOverWs(wsUrl: string, text: string, voice: string, speed: number): Promise<SynthesisResult> {
   return new Promise((resolve, reject) => {
-    const url = API_KEY ? `${ENDPOINT}?key=${encodeURIComponent(API_KEY)}` : ENDPOINT
-    const ws = new WebSocket(url)
+    const ws = new WebSocket(wsUrl)
     const pcmChunks: Buffer[] = []
     let genMs: number | null = null
     let audioS: number | null = null
@@ -55,7 +73,7 @@ function synthesize(text: string, voice: string, speed: number): Promise<Synthes
       if (settled) return
       settled = true
       ws.terminate()
-      reject(new Error(`Synthesis timed out after ${SYNTHESIS_TIMEOUT_MS}ms — the gateway may be cold-starting or under load`))
+      reject(new Error(`Synthesis timed out after ${SYNTHESIS_TIMEOUT_MS}ms`))
     }, SYNTHESIS_TIMEOUT_MS)
 
     function finish(err: Error | null) {
@@ -88,9 +106,6 @@ function synthesize(text: string, voice: string, speed: number): Promise<Synthes
           genMs = (genMs ?? 0) + (msg.gen_ms ?? 0)
           audioS = (audioS ?? 0) + (msg.audio_s ?? 0)
           break
-        case 'status':
-          // e.g. {"state":"provisioning"} in gated/auto mode — nothing to do but wait
-          break
         case 'done':
           finish(null)
           break
@@ -110,15 +125,26 @@ function synthesize(text: string, voice: string, speed: number): Promise<Synthes
   })
 }
 
+async function synthesize(text: string, voice: string, speed: number): Promise<SynthesisResult> {
+  if (!API_KEY) {
+    throw new Error(
+      'REALTIME_TTS_API_KEY is not set. Get a free API key (10,000 free characters, no card required) at https://readaloudai.org/developers'
+    )
+  }
+  const { token, url } = await authorize()
+  return synthesizeOverWs(`${url}?token=${encodeURIComponent(token)}`, text, voice, speed)
+}
+
 const server = new Server(
-  { name: 'realtime-tts-mcp', version: '0.1.0' },
+  { name: 'realtime-tts-mcp', version: '0.2.0' },
   { capabilities: { tools: {} } }
 )
 
 const TOOLS = [
   {
     name: 'synthesize_speech',
-    description: 'Convert text to spoken audio using a real-time, streaming Kokoro-82M TTS gateway. Returns a playable WAV file. The gateway currently runs on an unauthenticated CPU fallback (multi-second latency) — no API key required, but expect a few seconds per call.',
+    description:
+      'Convert text to spoken audio using ReadAloud\'s realtime streaming TTS API (Kokoro-82M). Returns a playable WAV file. Requires a free API key (10,000 free characters included, no card required — sign up at https://readaloudai.org/developers) set as REALTIME_TTS_API_KEY. Typical warm latency is well under a second.',
     inputSchema: {
       type: 'object',
       properties: {
