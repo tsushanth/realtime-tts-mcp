@@ -1,10 +1,18 @@
 # realtime-tts-mcp
 
-An MCP server wrapping [ReadAloud](https://readaloudai.org)'s realtime streaming text-to-speech API (Kokoro-82M) as a single `synthesize_speech` tool. Returns a playable WAV file. Typical warm latency is well under a second.
+An MCP server wrapping [ReadAloud](https://readaloudai.org)'s realtime streaming text-to-speech API (Kokoro-82M) as a `synthesize_speech` tool, plus the full lifecycle for Orpheus streaming voice cloning (a newer, lower-latency cloning model, still being tuned). Returns playable WAV files.
 
-## Tool
+## Tools
 
-- **`synthesize_speech(text, voice?, speed?)`** — converts text to spoken audio. `voice` defaults to `af_heart` (a Kokoro voice id); `speed` defaults to `1.0`.
+- **`synthesize_speech(text, voice?, speed?)`** — converts text to spoken audio. `voice` defaults to `af_heart` (a Kokoro voice id); `speed` defaults to `1.0`. Typical warm latency is well under a second.
+- **`create_cloned_voice(speaker_name, attested_by, consent_statement)`** — starts creating a streaming cloned voice; returns a voice id.
+- **`upload_voice_dataset(voice_id, dataset_zip_base64)`** — uploads 8-20 minutes of recordings (zipped WAV/FLAC/MP3) for that voice.
+- **`commit_voice_training(voice_id)`** — starts training (roughly 10-90 minutes).
+- **`get_voice_status(voice_id)`** — polls status: `awaiting_dataset` → `training` → `warming` → `ready` (or `failed`).
+- **`synthesize_cloned_voice(voice_id, text)`** — synthesizes speech in a `ready` cloned voice. See [readaloudai.org/developers](https://readaloudai.org/developers) for current measured latency and known limitations on this path.
+- **`delete_cloned_voice(voice_id)`** — permanently deletes a cloned voice and its consent record.
+
+Voice cloning requires a billing-enabled API key (training and synthesis use real GPU time).
 
 ## Install
 
