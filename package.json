@@ -7,7 +7,7 @@
     "node": ">=18"
   },
   "bin": {
-    "realtime-tts-mcp": "./dist/index.js"
+    "realtime-tts-mcp": "dist/index.js"
   },
   "files": [
     "dist"
@@ -30,7 +30,14 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/tsushanth/realtime-tts-mcp.git"
+    "url": "git+https://github.com/tsushanth/realtime-tts-mcp.git"
   },
-  "keywords": ["mcp", "model-context-protocol", "tts", "text-to-speech", "kokoro", "voice"]
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "tts",
+    "text-to-speech",
+    "kokoro",
+    "voice"
+  ]
 }
