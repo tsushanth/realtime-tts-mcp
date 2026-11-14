@@ -286,7 +286,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         if (!speaker_name || !attested_by || !consent_statement) {
           return { content: [{ type: 'text', text: 'Error: speaker_name, attested_by, and consent_statement are all required' }], isError: true }
         }
-        const res = await cloneFetch('/v1/orpheus-voices', {
+        const res = await cloneFetch('/v1/streaming-voices', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -309,7 +309,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
           return { content: [{ type: 'text', text: 'Error: voice_id and dataset_zip_base64 are required' }], isError: true }
         }
         const zipBuf = Buffer.from(zipBase64, 'base64')
-        const res = await cloneFetch(`/v1/orpheus-voices/${encodeURIComponent(voiceId)}/dataset`, {
+        const res = await cloneFetch(`/v1/streaming-voices/${encodeURIComponent(voiceId)}/dataset`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/zip' },
           body: zipBuf,
@@ -322,7 +322,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       case 'commit_voice_training': {
         const voiceId = String(a.voice_id ?? '')
         if (!voiceId) return { content: [{ type: 'text', text: 'Error: voice_id is required' }], isError: true }
-        const res = await cloneFetch(`/v1/orpheus-voices/${encodeURIComponent(voiceId)}/dataset/commit`, { method: 'POST' })
+        const res = await cloneFetch(`/v1/streaming-voices/${encodeURIComponent(voiceId)}/dataset/commit`, { method: 'POST' })
         const body: any = await res.json().catch(() => ({}))
         if (!res.ok) return { content: [{ type: 'text', text: `Error (${res.status}): ${JSON.stringify(body)}` }], isError: true }
         return { content: [{ type: 'text', text: `Training started for voice ${voiceId} (status: ${body.status}). This takes roughly 10-90 minutes; poll get_voice_status for progress.` }] }
@@ -331,7 +331,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       case 'get_voice_status': {
         const voiceId = String(a.voice_id ?? '')
         if (!voiceId) return { content: [{ type: 'text', text: 'Error: voice_id is required' }], isError: true }
-        const res = await cloneFetch(`/v1/orpheus-voices/${encodeURIComponent(voiceId)}`)
+        const res = await cloneFetch(`/v1/streaming-voices/${encodeURIComponent(voiceId)}`)
         const body: any = await res.json().catch(() => ({}))
         if (!res.ok) return { content: [{ type: 'text', text: `Error (${res.status}): ${JSON.stringify(body)}` }], isError: true }
         return { content: [{ type: 'text', text: JSON.stringify(body, null, 2) }] }
@@ -343,7 +343,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         if (!voiceId || !text.trim()) {
           return { content: [{ type: 'text', text: 'Error: voice_id and text are required' }], isError: true }
         }
-        const res = await cloneFetch('/v1/orpheus-tts', {
+        const res = await cloneFetch('/v1/streaming-tts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ voice: `custom-fast:${voiceId}`, text }),
@@ -360,7 +360,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       case 'delete_cloned_voice': {
         const voiceId = String(a.voice_id ?? '')
         if (!voiceId) return { content: [{ type: 'text', text: 'Error: voice_id is required' }], isError: true }
-        const res = await cloneFetch(`/v1/orpheus-voices/${encodeURIComponent(voiceId)}`, { method: 'DELETE' })
+        const res = await cloneFetch(`/v1/streaming-voices/${encodeURIComponent(voiceId)}`, { method: 'DELETE' })
         const body: any = await res.json().catch(() => ({}))
         if (!res.ok) return { content: [{ type: 'text', text: `Error (${res.status}): ${JSON.stringify(body)}` }], isError: true }
         return { content: [{ type: 'text', text: `Deleted voice ${voiceId}.` }] }
