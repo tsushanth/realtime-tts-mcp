@@ -1,8 +1,8 @@
 {
   "name": "realtime-tts-mcp",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "mcpName": "io.github.tsushanth/realtime-tts-mcp",
-  "description": "MCP server for ReadAloud's realtime streaming text-to-speech API (Kokoro-82M) synthesize_speech tool, plus the full lifecycle for Orpheus streaming voice cloning. Free API key, 10,000 free characters, sub-second warm latency. Returns playable WAV audio.",
+  "description": "MCP server for ReadAloud's realtime streaming text-to-speech API: a synthesize_speech tool, plus the full lifecycle for streaming voice cloning. Free API key, 10,000 free characters, sub-second warm latency. Returns playable WAV audio.",
   "engines": {
     "node": ">=18"
   },
@@ -37,7 +37,10 @@
     "model-context-protocol",
     "tts",
     "text-to-speech",
-    "kokoro",
-    "voice"
+    "voice",
+    "voice-cloning",
+    "streaming",
+    "readaloud",
+    "elevenlabs-alternative"
   ]
 }

@@ -125,8 +125,8 @@ function synthesizeOverWs(wsUrl: string, text: string, voice: string, speed: num
   })
 }
 
-// --- Orpheus streaming voice cloning: simple REST calls through the public
-// gateway (api.readaloudai.org/v1/orpheus-voices, /v1/orpheus-tts), unlike
+// --- Streaming voice cloning: simple REST calls through the public
+// gateway (api.readaloudai.org), unlike
 // synthesize_speech's persistent-WebSocket fast path above -- no perf case
 // for bypassing the gateway here, these are one-shot request/response calls.
 function apiKeyOrThrow(): string {
@@ -138,7 +138,7 @@ function apiKeyOrThrow(): string {
   return API_KEY
 }
 
-async function orpheusFetch(path: string, init: RequestInit = {}): Promise<Response> {
+async function cloneFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: { Authorization: `Bearer ${apiKeyOrThrow()}`, ...(init.headers ?? {}) },
@@ -157,7 +157,7 @@ async function synthesize(text: string, voice: string, speed: number): Promise<S
 }
 
 const server = new Server(
-  { name: 'realtime-tts-mcp', version: '0.2.0' },
+  { name: 'realtime-tts-mcp', version: '0.3.1' },
   { capabilities: { tools: {} } }
 )
 
@@ -165,12 +165,12 @@ const TOOLS = [
   {
     name: 'synthesize_speech',
     description:
-      'Convert text to spoken audio using ReadAloud\'s realtime streaming TTS API (Kokoro-82M). Returns a playable WAV file. Requires a free API key (10,000 free characters included, no card required — sign up at https://readaloudai.org/developers) set as REALTIME_TTS_API_KEY. Typical warm latency is well under a second.',
+      'Convert text to spoken audio using ReadAloud\'s realtime streaming TTS API. Returns a playable WAV file. Requires a free API key (10,000 free characters included, no card required — sign up at https://readaloudai.org/developers) set as REALTIME_TTS_API_KEY. Typical warm latency is well under a second.',
     inputSchema: {
       type: 'object',
       properties: {
         text: { type: 'string', description: 'Text to synthesize' },
-        voice: { type: 'string', description: 'Kokoro voice id (default "af_heart")' },
+        voice: { type: 'string', description: 'Voice id from the ReadAloud voice list (default: the standard English voice)' },
         speed: { type: 'number', description: 'Playback speed multiplier (default 1.0)' },
       },
       required: ['text'],
@@ -179,7 +179,7 @@ const TOOLS = [
   {
     name: 'create_cloned_voice',
     description:
-      'Start creating a low-latency streaming cloned voice (Orpheus). Records your consent to clone the named speaker\'s voice, and returns a voice id -- upload a dataset with upload_voice_dataset next. Requires a billing-enabled API key.',
+      'Start creating a low-latency streaming cloned voice. Records your consent to clone the named speaker\'s voice, and returns a voice id -- upload a dataset with upload_voice_dataset next. Requires a billing-enabled API key.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -230,7 +230,7 @@ const TOOLS = [
   {
     name: 'synthesize_cloned_voice',
     description:
-      'Synthesize speech in a cloned voice once its status is "ready". Returns a playable WAV file. This is a newer, lower-latency streaming model than the standard voice-cloning path, still being tuned -- see https://readaloudai.org/developers for current measured numbers and known limitations.',
+      'Synthesize speech in a cloned voice once its status is "ready". Returns a playable WAV file. This is a newer, lower-latency streaming cloning path, still being tuned -- see https://readaloudai.org/developers for current measured numbers and known limitations.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -286,7 +286,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         if (!speaker_name || !attested_by || !consent_statement) {
           return { content: [{ type: 'text', text: 'Error: speaker_name, attested_by, and consent_statement are all required' }], isError: true }
         }
-        const res = await orpheusFetch('/v1/orpheus-voices', {
+        const res = await cloneFetch('/v1/streaming-voices', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -309,7 +309,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
           return { content: [{ type: 'text', text: 'Error: voice_id and dataset_zip_base64 are required' }], isError: true }
         }
         const zipBuf = Buffer.from(zipBase64, 'base64')
-        const res = await orpheusFetch(`/v1/orpheus-voices/${encodeURIComponent(voiceId)}/dataset`, {
+        const res = await cloneFetch(`/v1/streaming-voices/${encodeURIComponent(voiceId)}/dataset`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/zip' },
           body: zipBuf,
@@ -322,7 +322,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       case 'commit_voice_training': {
         const voiceId = String(a.voice_id ?? '')
         if (!voiceId) return { content: [{ type: 'text', text: 'Error: voice_id is required' }], isError: true }
-        const res = await orpheusFetch(`/v1/orpheus-voices/${encodeURIComponent(voiceId)}/dataset/commit`, { method: 'POST' })
+        const res = await cloneFetch(`/v1/streaming-voices/${encodeURIComponent(voiceId)}/dataset/commit`, { method: 'POST' })
         const body: any = await res.json().catch(() => ({}))
         if (!res.ok) return { content: [{ type: 'text', text: `Error (${res.status}): ${JSON.stringify(body)}` }], isError: true }
         return { content: [{ type: 'text', text: `Training started for voice ${voiceId} (status: ${body.status}). This takes roughly 10-90 minutes; poll get_voice_status for progress.` }] }
@@ -331,7 +331,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       case 'get_voice_status': {
         const voiceId = String(a.voice_id ?? '')
         if (!voiceId) return { content: [{ type: 'text', text: 'Error: voice_id is required' }], isError: true }
-        const res = await orpheusFetch(`/v1/orpheus-voices/${encodeURIComponent(voiceId)}`)
+        const res = await cloneFetch(`/v1/streaming-voices/${encodeURIComponent(voiceId)}`)
         const body: any = await res.json().catch(() => ({}))
         if (!res.ok) return { content: [{ type: 'text', text: `Error (${res.status}): ${JSON.stringify(body)}` }], isError: true }
         return { content: [{ type: 'text', text: JSON.stringify(body, null, 2) }] }
@@ -343,7 +343,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         if (!voiceId || !text.trim()) {
           return { content: [{ type: 'text', text: 'Error: voice_id and text are required' }], isError: true }
         }
-        const res = await orpheusFetch('/v1/orpheus-tts', {
+        const res = await cloneFetch('/v1/streaming-tts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ voice: `custom-fast:${voiceId}`, text }),
@@ -360,7 +360,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       case 'delete_cloned_voice': {
         const voiceId = String(a.voice_id ?? '')
         if (!voiceId) return { content: [{ type: 'text', text: 'Error: voice_id is required' }], isError: true }
-        const res = await orpheusFetch(`/v1/orpheus-voices/${encodeURIComponent(voiceId)}`, { method: 'DELETE' })
+        const res = await cloneFetch(`/v1/streaming-voices/${encodeURIComponent(voiceId)}`, { method: 'DELETE' })
         const body: any = await res.json().catch(() => ({}))
         if (!res.ok) return { content: [{ type: 'text', text: `Error (${res.status}): ${JSON.stringify(body)}` }], isError: true }
         return { content: [{ type: 'text', text: `Deleted voice ${voiceId}.` }] }
